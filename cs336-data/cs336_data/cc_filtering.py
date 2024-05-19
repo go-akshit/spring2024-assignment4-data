@@ -136,7 +136,7 @@ def gopher_quality_filter(text : str):
     return True
 
 
-def reservoir_sampling(input_file_path : str, sample_size : int, output_file_path : str):
+def reservoir_sampling(input_file_path : str, sample_size : int, output_file_path1 : str, output_file_path2):
     sample = []
     if('.gz' in input_file_path):
         with gzip.open(input_file_path, 'rt', encoding='utf-8') as f:
@@ -159,11 +159,19 @@ def reservoir_sampling(input_file_path : str, sample_size : int, output_file_pat
                     sample[random.randint(0, sample_size-1)] = line
                 w *= math.exp(math.log(random.random()) / sample_size)
     
-    with open(output_file_path, 'w') as f:
-        for line in sample:
+    sample_first_half = sample[:sample_size//2]
+    sample_second_half = sample[sample_size//2:]
+    
+    with open(output_file_path1, 'w') as f:
+        for line in sample_first_half:
             f.write(line)
             f.write('\n')
 
+    with open(output_file_path2, 'w') as f:
+        for line in sample_second_half:
+            f.write(line)
+            f.write('\n')
+    
 def main():
     
     # extract_text_from_warc('../CC-MAIN-20180420081400-20180420101400-00118.warc.gz', 'output_extract_text.txt')
@@ -193,6 +201,6 @@ def main():
 
     #gopher_quality_filter('this is a test.')
 
-    reservoir_sampling('/home/shared/enwiki-20240420-extracted_urls.txt.gz', 100000, 'positive_url_sample.txt')
+    reservoir_sampling('/home/shared/enwiki-20240420-extracted_urls.txt.gz', 10, 'positive_url_sample1.txt', 'positive_url_sample2.txt')
 if __name__ == '__main__':
     main()

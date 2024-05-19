@@ -132,6 +132,23 @@ def gopher_quality_filter(text : str):
     
     return True
 
+
+def reservoir_sampling(input_file_path : str, sample_size : int, output_file_path : str):
+    sample = []
+    if('.gz' in input_file_path):
+        with gzip.open(input_file_path, 'rt', encoding='utf-8') as f:
+            for i, line in enumerate(f):
+                if i < sample_size:
+                    sample.append(line)
+                else:
+                    j = random.randint(0, i)
+                    if j < sample_size:
+                        sample[j] = line
+    
+    with open(output_file_path, 'w') as f:
+        for line in sample:
+            f.write(line)
+
 def main():
     
     # extract_text_from_warc('../CC-MAIN-20180420081400-20180420101400-00118.warc.gz', 'output_extract_text.txt')
@@ -159,6 +176,8 @@ def main():
     # label, confidence = classify_toxic_speech('this is a test.')
     # print(label, confidence)
 
-    gopher_quality_filter('this is a test.')
+    #gopher_quality_filter('this is a test.')
+
+    reservoir_sampling('/home/shared/enwiki-20240420-extracted_urls.txt.gz', 10, 'positive_url_sample.txt')
 if __name__ == '__main__':
     main()

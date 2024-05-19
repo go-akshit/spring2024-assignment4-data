@@ -193,6 +193,6 @@ def main():
 
     #gopher_quality_filter('this is a test.')
 
-    reservoir_sampling('/home/shared/enwiki-20240420-extracted_urls.txt.gz', 2, 'positive_url_sample.txt')
+    reservoir_sampling('/home/shared/enwiki-20240420-extracted_urls.txt.gz', 100000, 'positive_url_sample.txt')
 if __name__ == '__main__':
     main()

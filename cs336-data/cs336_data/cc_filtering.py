@@ -29,7 +29,7 @@ def extract_text_from_warc(warc_file_path : str, output_file_path : str):
 
 
 def language_detection(text : str):
-    model = fasttext.load_model('../../lid.176.bin')
+    model = fasttext.load_model('/home/shared/lid.176.bin')
     text = text.replace('\n', ' ')
     prediction =  model.predict(text)
     language = prediction[0][0].replace('__label__', '')
@@ -74,14 +74,14 @@ def mask_ips(text : str):
     return masked_text, len(ip_addresses)
 
 def classify_nsfw(text : str):
-    nsfw_model = fasttext.load_model('../../nsfw_model.bin')
+    nsfw_model = fasttext.load_model('/home/shared/dolma-jigsaw-fasttext-bigrams-nsfw.bin')
     model_prediction = nsfw_model.predict(text)
     label = model_prediction[0][0].replace('__label__', '')
     confidence = model_prediction[1][0]
     return label, confidence
 
 def classify_toxic_speech(text : str):
-    toxic_model = fasttext.load_model('../../hatespeech_model.bin')
+    toxic_model = fasttext.load_model('/home/shared/dolma-jigsaw-fasttext-bigrams-hatespeech.bin')
     model_prediction = toxic_model.predict(text)
     label = model_prediction[0][0].replace('__label__', '')
     confidence = model_prediction[1][0]

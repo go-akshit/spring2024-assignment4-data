@@ -144,6 +144,8 @@ def reservoir_sampling(input_file_path : str, sample_size : int, output_file_pat
                 line = f.readline().strip()
                 sample.append(line)
             
+            import pdb; pdb.set_trace()
+            
             w = math.exp(math.log(random.random()) / sample_size)
             for i, line in enumerate(f, start=sample_size+1):
                 skip = math.floor(math.log(random.random()) / math.log(1 - w))

@@ -144,7 +144,6 @@ def reservoir_sampling(input_file_path : str, sample_size : int, output_file_pat
                 line = f.readline().strip()
                 sample.append(line)
             
-            import pdb; pdb.set_trace()
             
             w = math.exp(math.log(random.random()) / sample_size)
             for i, line in enumerate(f, start=sample_size+1):
@@ -155,7 +154,9 @@ def reservoir_sampling(input_file_path : str, sample_size : int, output_file_pat
                     f.readline()
                 
                 line = f.readline().strip()
-                sample[random.randint(0, sample_size-1)] = line
+
+                if line:
+                    sample[random.randint(0, sample_size-1)] = line
                 w *= math.exp(math.log(random.random()) / sample_size)
     
     with open(output_file_path, 'w') as f:

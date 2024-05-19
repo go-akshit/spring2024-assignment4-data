@@ -6,6 +6,7 @@ import fasttext
 import regex as re
 import random
 import gzip
+import math
 from nltk import word_tokenize
 
 def extract_text(html_byte_str : bytes):
@@ -139,18 +140,26 @@ def reservoir_sampling(input_file_path : str, sample_size : int, output_file_pat
     sample = []
     if('.gz' in input_file_path):
         with gzip.open(input_file_path, 'rt', encoding='utf-8') as f:
-            for i, line in enumerate(f):
-                import pdb; pdb.set_trace()
-                if i < sample_size:
-                    sample.append(line)
-                else:
-                    j = random.randint(0, i)
-                    if j < sample_size:
-                        sample[j] = line
+            for i in range(sample_size):
+                line = f.readline().strip()
+                sample.append(line)
+            
+            w = math.exp(math.log(random.random()) / sample_size)
+            for i, line in enumerate(f, start=sample_size+1):
+                skip = math.floor(math.log(random.random()) / math.log(1 - w))
+                i += skip + 1
+
+                for _ in range(skip):
+                    f.readline()
+                
+                line = f.readline().strip()
+                sample[random.randint(0, sample_size-1)] = line
+                w *= math.exp(math.log(random.random()) / sample_size)
     
     with open(output_file_path, 'w') as f:
         for line in sample:
             f.write(line)
+            f.write('\n')
 
 def main():
     

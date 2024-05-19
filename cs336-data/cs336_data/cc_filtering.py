@@ -140,6 +140,7 @@ def reservoir_sampling(input_file_path : str, sample_size : int, output_file_pat
     if('.gz' in input_file_path):
         with gzip.open(input_file_path, 'rt', encoding='utf-8') as f:
             for i, line in enumerate(f):
+                import pdb; pdb.set_trace()
                 if i < sample_size:
                     sample.append(line)
                 else:

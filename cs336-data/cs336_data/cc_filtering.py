@@ -4,6 +4,8 @@ from resiliparse.parse.encoding import detect_encoding
 from fastwarc.warc import ArchiveIterator, WarcRecordType
 import fasttext
 import regex as re
+import random
+import gzip
 from nltk import word_tokenize
 
 def extract_text(html_byte_str : bytes):

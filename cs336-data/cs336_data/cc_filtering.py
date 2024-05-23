@@ -8,6 +8,7 @@ import random
 import gzip
 import math
 from nltk import word_tokenize
+from pathlib import Path
 
 def extract_text(html_byte_str : bytes):
     encoding = detect_encoding(html_byte_str)
@@ -171,6 +172,32 @@ def reservoir_sampling(input_file_path : str, sample_size : int, output_file_pat
         for line in sample_second_half:
             f.write(line)
             f.write('\n')
+
+def exact_deduplication(input_files, output_dir):
+    line_counts = {}
+    for path in input_files:
+        with open(path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                hash_val = hash(line)
+                if hash_val not in line_counts:
+                    line_counts[hash_val] = 0
+                line_counts[hash_val] += 1
+
+    output_dir_path = Path(output_dir)
+    for path in input_files:
+        file_name = Path(path).name
+        output_path = output_dir_path / file_name
+        with open(path, 'r') as f:
+            with open(output_path, 'w') as f_out:
+                for line in f:
+                    line = line.strip()
+                    hash_val = hash(line)
+                    if line_counts[hash_val] == 1:
+                        f_out.write(line)
+                        f_out.write('\n')
+                
+            
     
 def main():
     

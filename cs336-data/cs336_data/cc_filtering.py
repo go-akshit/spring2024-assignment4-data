@@ -25,16 +25,17 @@ def extract_text_from_warc(warc_file_path : str, output_file_path : str):
     for record in ArchiveIterator(open(warc_file_path, 'rb')):
         if (record.record_type == WarcRecordType.response):
             if (record.http_headers.get('Content-Type') and 'text/html' in record.http_headers.get('Content-Type')):
-                record_content = record.reader.read()
+                # record_content = record.reader.read()
                 
-                text = extract_text(record_content)
+                # text = extract_text(record_content)
                 
                 i += 1
-        if i == 1:
-            break
+        # if i == 1:
+        #     break
     
-    with open(output_file_path, 'w') as f:
-        f.write(text)
+    print(i)
+    # with open(output_file_path, 'w') as f:
+    #     f.write(text)
 
 
 def language_detection(text : str):

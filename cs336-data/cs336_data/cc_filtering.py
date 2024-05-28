@@ -23,12 +23,13 @@ def extract_text_from_warc(warc_file_path : str, output_file_path : str):
     i = 0
     
     for record in ArchiveIterator(open(warc_file_path, 'rb')):
-        if (record.record_type == WarcRecordType.response) and ('text/html' in record.http_headers.get('Content-Type')):
-            record_content = record.reader.read()
-            
-            text = extract_text(record_content)
-            
-            i += 1
+        if (record.record_type == WarcRecordType.response):
+            if ('text/html' in record.http_headers.get('Content-Type')):
+                record_content = record.reader.read()
+                
+                text = extract_text(record_content)
+                
+                i += 1
         if i == 1:
             break
     

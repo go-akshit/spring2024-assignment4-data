@@ -9,6 +9,10 @@ import gzip
 import math
 from nltk import word_tokenize
 from pathlib import Path
+import mmh3
+import string
+import unicodedata
+import re
 
 def extract_text(html_byte_str : bytes):
     encoding = detect_encoding(html_byte_str)
@@ -196,7 +200,154 @@ def exact_deduplication(input_files, output_dir):
                     if line_counts[hash_val] == 1:
                         f_out.write(line)
                         f_out.write('\n')
+
+
+def minhash_signatures(input_files, num_hashes, n_gram_length):
+    all_signatures = []
+    for input_file_path in input_files:
+        
+        signature = []
+        with open(input_file_path, 'r') as f:
+            doc = f.read()
+            doc = normalize_text(doc)
+            
+            for seed in range(num_hashes):
+                min_hash = None 
                 
+                doc_n_grams = get_n_grams(doc, n_gram_length)
+                for n_gram in doc_n_grams:
+                    hash_val = mmh3.hash(n_gram, seed)
+                    if min_hash is None:
+                        min_hash = hash_val
+                    else:
+                        min_hash = min(min_hash, hash_val)
+            signature.append(min_hash)
+        all_signatures.append(signature)
+    return all_signatures
+
+def minhash_lsh_deduplication(input_files, num_hashes, num_bands, n_gram_length, threshold, output_dir):
+    all_signatures = minhash_signatures(input_files, num_hashes, n_gram_length)
+    band_size = num_hashes // num_bands
+    all_banded_signatures = []
+    for signature in all_signatures:
+        banded_signature = [signature[j:j+band_size] for j in range(0, len(signature), band_size)]
+        all_banded_signatures.append(banded_signature)
+
+    #Grouping documents which have atleast one band in common 
+    potential_duplicates = {}
+    for first_file_index, first_banded_signature in enumerate(all_banded_signatures):
+        for band_index, _ in enumerate(first_banded_signature):
+            for second_file_index, second_banded_signature in enumerate(all_banded_signatures):
+                if first_file_index == second_file_index:
+                    continue
+                if first_file_index in potential_duplicates:
+                    if second_file_index in potential_duplicates[first_file_index]:
+                        continue
+                if first_file_index not in potential_duplicates:
+                    potential_duplicates[first_file_index] = [] 
+
+                if first_banded_signature[band_index] == second_banded_signature[band_index]:    
+                    potential_duplicates[first_file_index].append(second_file_index)
+
+    
+
+    #Evaluate potential duplicates and keep only actual duplicates in the dictionary
+    actual_duplicates = {}
+    for key, value in potential_duplicates.items():
+        first_banded_signature = all_banded_signatures[key]
+
+        if key not in actual_duplicates:
+            actual_duplicates[key] = []
+
+
+        for second_file_index in value:
+            second_banded_signature = all_banded_signatures[second_file_index]
+            #jackard_similarity = compute_jaccard_similarity(first_banded_signature, second_banded_signature)
+            jackard_similarity = compute_jaccard_similarity(key, second_file_index, input_files, n_gram_length)
+            if jackard_similarity > threshold:    
+                actual_duplicates[key].append(second_file_index)
+
+    #Grouping actual duplicates
+    all_duplicate_clusters = get_duplicate_clusters(actual_duplicates)
+    
+    #Writing the duplicate clusters to output files
+    output_dir_path = Path(output_dir)
+    for cluster in all_duplicate_clusters:
+        random_file_index = random.choice(cluster)
+        
+        input_path = input_files[random_file_index]
+        file_name = Path(input_path).name
+        output_path = output_dir_path / file_name
+        with open(input_path, 'r') as f:
+            with open(output_path, 'w') as f_out:
+                for line in f:
+                    f_out.write(line)
+
+def compute_jaccard_similarity(first_file_index, second_file_index, input_files, n_gram_length):
+    # same_entries = 0
+    # for i in range(len(first_banded_signature)):
+    #     if first_banded_signature[i] == second_banded_signature[i]:
+    #         same_entries += 1
+    #     # else:
+    #     #     import pdb; pdb.set_trace()
+    # return same_entries / len(first_banded_signature)
+    doc1 = open(input_files[first_file_index], 'r').read()
+    doc2 = open(input_files[second_file_index], 'r').read()
+
+    doc1 = normalize_text(doc1)
+    doc2 = normalize_text(doc2)
+
+    doc1_n_grams = get_n_grams(doc1, n_gram_length)
+    doc2_n_grams = get_n_grams(doc2, n_gram_length)
+
+    set_doc1_n_grams = set(doc1_n_grams)
+    set_doc2_n_grams = set(doc2_n_grams)
+
+    intersection = set_doc1_n_grams.intersection(set_doc2_n_grams)
+    union = set_doc1_n_grams.union(set_doc2_n_grams)
+
+    return len(intersection) / len(union)
+
+
+def get_duplicate_clusters(input_dict):
+    all_duplicate_clusters = set()
+    for key, value in input_dict.items():
+        list_of_keys_checked = [key]
+        cluster = set()
+        cluster.add(key)
+        add_to_cluster(cluster, value, input_dict, list_of_keys_checked)
+        cluster = tuple(cluster)
+        all_duplicate_clusters.add(cluster)
+    return all_duplicate_clusters
+
+
+def add_to_cluster(cluster, value, input_dict, list_of_keys_checked):
+    for val in value:
+        if val not in list_of_keys_checked:
+            cluster.add(val)
+            list_of_keys_checked.append(val)
+            add_to_cluster(cluster, input_dict[val], input_dict, list_of_keys_checked)
+
+        
+def normalize_text(text):
+    # remove accents and NFD unicode normalization
+    text = unicodedata.normalize('NFD', text)
+    text = ''.join([c for c in text if not unicodedata.combining(c)])
+    # convert to lowercase
+    text = text.lower()
+    # remove punctuation
+    translator = str.maketrans('', '', string.punctuation)
+    text = text.translate(translator)
+    # remove extra whitespaces
+    text = re.sub(r'\s+', ' ', text).strip()   
+    text = text.replace('\n', ' ')  
+    return text      
+
+
+def get_n_grams(text, n):
+    words = text.split()
+    n_grams = [' '.join(words[i:i+n]) for i in range(len(words)-n+1)]
+    return n_grams
             
     
 def main():
@@ -228,6 +379,13 @@ def main():
 
     #gopher_quality_filter('this is a test.')
 
-    reservoir_sampling('/home/shared/enwiki-20240420-extracted_urls.txt.gz', 100000, 'positive_url_sample1.txt', 'positive_url_sample2.txt')
+    #reservoir_sampling('/home/shared/enwiki-20240420-extracted_urls.txt.gz', 100000, 'positive_url_sample1.txt', 'positive_url_sample2.txt')
+
+    # dict = {1: [2], 2 : [1, 3, 4, 5], 3:[2], 4:[5, 6, 7], 5:[2, 4, 8], 6:[4], 7:[4], 8:[5], 9:[10], 10:[9, 11], 11:[10], 12:[]}
+    # all_duplicate_clusters = get_duplicate_clusters(dict)
+    # print(all_duplicate_clusters)
+    return 0
+
+
 if __name__ == '__main__':
     main()

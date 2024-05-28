@@ -15,7 +15,8 @@ from cc_filtering import (
     classify_nsfw,
     classify_toxic_speech,
     gopher_quality_filter,
-    exact_deduplication
+    exact_deduplication, 
+    minhash_lsh_deduplication
 )
 
 def run_extract_text_from_html_bytes(html_bytes: bytes) -> str | None:
@@ -68,4 +69,4 @@ def run_minhash_deduplication(
     jaccard_threshold: float,
     output_directory: os.PathLike,
 ):
-    raise NotImplementedError
+    minhash_lsh_deduplication(input_files, num_hashes, num_bands, ngrams, jaccard_threshold, output_directory)

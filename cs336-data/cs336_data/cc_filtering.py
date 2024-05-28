@@ -384,6 +384,8 @@ def main():
     # dict = {1: [2], 2 : [1, 3, 4, 5], 3:[2], 4:[5, 6, 7], 5:[2, 4, 8], 6:[4], 7:[4], 8:[5], 9:[10], 10:[9, 11], 11:[10], 12:[]}
     # all_duplicate_clusters = get_duplicate_clusters(dict)
     # print(all_duplicate_clusters)
+
+    extract_text_from_warc('subsampled_positive_urls1.warc.warc.gz', 'positive_urls1_text.txt')
     return 0
 
 

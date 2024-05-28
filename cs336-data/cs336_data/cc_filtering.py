@@ -24,7 +24,7 @@ def extract_text_from_warc(warc_file_path : str, output_file_path : str):
     
     for record in ArchiveIterator(open(warc_file_path, 'rb')):
         if (record.record_type == WarcRecordType.response):
-            if ('text/html' in record.http_headers.get('Content-Type')):
+            if (record.http_headers.get('Content-Type') and 'text/html' in record.http_headers.get('Content-Type')):
                 record_content = record.reader.read()
                 
                 text = extract_text(record_content)

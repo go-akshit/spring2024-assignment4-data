@@ -13,39 +13,60 @@ import mmh3
 import string
 import unicodedata
 import re
+import os
+import submitit
+from tqdm import tqdm
 
 def extract_text(html_byte_str : bytes):
     encoding = detect_encoding(html_byte_str)
-    decoded_string = html_byte_str.decode(encoding)
+    decoded_string = html_byte_str.decode(encoding, 'ignore')
     return extract_plain_text(decoded_string)
 
 def extract_text_from_warc(warc_file_path : str, output_file_path : str):
     i = 0
+    j = 0
+    with open(output_file_path, 'w') as f:
+        for record in ArchiveIterator(open(warc_file_path, 'rb')):
+            if (record.record_type == WarcRecordType.response):
+                if (record.http_headers.get('Content-Type') and 'text/html' in record.http_headers.get('Content-Type')):
+                    record_content = record.reader.read()
+                    text = extract_text(record_content)
+                    text, _ = mask_email(text)
+                    text, _ = mask_phone_numbers(text)
+                    text, _ = mask_ips(text)
+                    i += 1
+                    print('i = ', i)
+                    if(gopher_quality_filter(text) == False):
+                        continue
+                    text = text.replace('\n', ' ')
+                    if(language_detection(text)[0] != 'en'):
+                        continue
+                    text = re.sub(r'[^\x00-\x7F]+', '', text)
+                    text = normalize_text(text)
+                    # if(classify_nsfw(text)[0] != 'non-nsfw'):
+                    #     continue
+                    # if(classify_toxic_speech(text)[0] != 'non-toxic'):
+                    #     continue                
+                    j += 1
+                    print('j = ', j)
+                    f.write('__label__bad')
+                    f.write(' ')
+                    f.write(text)
+                    f.write('\n')
+            if j == 12000:
+                break
     
-    for record in ArchiveIterator(open(warc_file_path, 'rb')):
-        if (record.record_type == WarcRecordType.response):
-            if (record.http_headers.get('Content-Type') and 'text/html' in record.http_headers.get('Content-Type')):
-                # record_content = record.reader.read()
-                
-                # text = extract_text(record_content)
-                
-                i += 1
-        # if i == 1:
-        #     break
     
-    print(i)
-    # with open(output_file_path, 'w') as f:
-    #     f.write(text)
+    
 
 
 def language_detection(text : str):
-    model = fasttext.load_model('/home/shared/lid.176.bin')
+    model = fasttext.load_model('../../lid.176.bin')
     text = text.replace('\n', ' ')
     prediction =  model.predict(text)
     language = prediction[0][0].replace('__label__', '')
     confidence = prediction[1][0]
     return language, confidence
-
 
 def mask_email(text : str):
     email_pattern = r'(?:[a-z0-9!#$%&\'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&\'*+/=?^_`{|}~-]+)*|"\\(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21\x23-\x5b\x5d-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])*")@(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\[(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?|[a-z0-9-]*[a-z0-9]:(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21-\x5a\x53-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])+)\])'
@@ -84,14 +105,14 @@ def mask_ips(text : str):
     return masked_text, len(ip_addresses)
 
 def classify_nsfw(text : str):
-    nsfw_model = fasttext.load_model('/home/shared/dolma-jigsaw-fasttext-bigrams-nsfw.bin')
+    nsfw_model = fasttext.load_model('../../nsfw_model.bin')
     model_prediction = nsfw_model.predict(text)
     label = model_prediction[0][0].replace('__label__', '')
     confidence = model_prediction[1][0]
     return label, confidence
 
 def classify_toxic_speech(text : str):
-    toxic_model = fasttext.load_model('/home/shared/dolma-jigsaw-fasttext-bigrams-hatespeech.bin')
+    toxic_model = fasttext.load_model('../../hatespeech_model.bin')
     model_prediction = toxic_model.predict(text)
     label = model_prediction[0][0].replace('__label__', '')
     confidence = model_prediction[1][0]
@@ -141,7 +162,6 @@ def gopher_quality_filter(text : str):
         return False
     
     return True
-
 
 def reservoir_sampling(input_file_path : str, sample_size : int, output_file_path1 : str, output_file_path2):
     sample = []
@@ -202,7 +222,6 @@ def exact_deduplication(input_files, output_dir):
                     if line_counts[hash_val] == 1:
                         f_out.write(line)
                         f_out.write('\n')
-
 
 def minhash_signatures(input_files, num_hashes, n_gram_length):
     all_signatures = []
@@ -310,7 +329,6 @@ def compute_jaccard_similarity(first_file_index, second_file_index, input_files,
 
     return len(intersection) / len(union)
 
-
 def get_duplicate_clusters(input_dict):
     all_duplicate_clusters = set()
     for key, value in input_dict.items():
@@ -350,8 +368,91 @@ def get_n_grams(text, n):
     words = text.split()
     n_grams = [' '.join(words[i:i+n]) for i in range(len(words)-n+1)]
     return n_grams
-            
+
+
+def train_quality_classifier():
+    model = fasttext.train_supervised(input="quality_classifier_train.txt")
+    model.save_model("quality_classifier_model.bin")
+
+def predict_quality_classifier(text):
+    model = fasttext.load_model("quality_classifier_model.bin")
+    text = text.replace('\n', ' ')
+    text = re.sub(r'[^\x00-\x7F]+', '', text)
+    text = normalize_text(text)
+    text = text.replace('\n', ' ')
+    prediction =  model.predict(text)
+    language = prediction[0][0].replace('__label__', '')
+    confidence = prediction[1][0]
+    return language, confidence
     
+def process_single_warc_file(warc_file_path : str, output_file_path : str):
+    num_removed_gopher = 0
+    num_removed_language = 0
+    num_removed_nsfw = 0
+    num_removed_toxic = 0
+    num_removed_quality = 0
+
+    lang_model = fasttext.load_model('../../lid.176.bin')
+    nsfw_model = fasttext.load_model('../../nsfw_model.bin')
+    toxic_model = fasttext.load_model('../../hatespeech_model.bin')
+    quality_model = fasttext.load_model("quality_classifier_model.bin")
+
+    with open(output_file_path, 'w') as f:
+        for record in ArchiveIterator(open(warc_file_path, 'rb')):
+            if (record.record_type == WarcRecordType.response):
+                if (record.http_headers.get('Content-Type') and 'text/html' in record.http_headers.get('Content-Type')):
+                    record_content = record.reader.read()
+                    text = extract_text(record_content)
+
+                    text, _ = mask_email(text)
+                    text, _ = mask_phone_numbers(text)
+                    text, _ = mask_ips(text)
+                    #gopher quality filter
+                    if(gopher_quality_filter(text) == False):
+                        num_removed_gopher += 1
+                        continue
+
+                    text = text.replace('\n', ' ')
+                    
+                    #language detection
+                    lang_prediction =  lang_model.predict(text)
+                    lang = lang_prediction[0][0].replace('__label__', '')
+                    if(lang != 'en'):
+                        num_removed_language += 1
+                        continue
+
+
+                    text = re.sub(r'[^\x00-\x7F]+', '', text)
+                    text = normalize_text(text)
+
+                    #nsfw classification
+                    nsfw_prediction = nsfw_model.predict(text)
+                    nsfw_label = nsfw_prediction[0][0].replace('__label__', '')
+                    if(nsfw_label != 'non-nsfw'):
+                        num_removed_nsfw += 1
+                        continue
+
+                    #hatred speech classification
+                    toxic_prediction = toxic_model.predict(text)
+                    toxic_label = toxic_prediction[0][0].replace('__label__', '')
+                    if(toxic_label != 'non-toxic'):
+                        num_removed_toxic += 1
+                        continue  
+
+                    #quality classification
+                    quality_prediction = quality_model.predict(text)
+                    quality_label = quality_prediction[0][0].replace('__label__', '')
+                    if(quality_label != 'good'):
+                        num_removed_quality += 1
+                        continue
+
+                    f.write(text)
+                    f.write('\n')
+
+    return (num_removed_gopher, num_removed_language, num_removed_nsfw, num_removed_toxic, num_removed_quality)
+    
+
+
 def main():
     
     # extract_text_from_warc('../CC-MAIN-20180420081400-20180420101400-00118.warc.gz', 'output_extract_text.txt')
@@ -387,7 +488,9 @@ def main():
     # all_duplicate_clusters = get_duplicate_clusters(dict)
     # print(all_duplicate_clusters)
 
-    extract_text_from_warc('subsampled_positive_urls1.warc.warc.gz', 'positive_urls1_text.txt')
+    #extract_text_from_warc('../../CC-MAIN-20180420081400-20180420101400-00118.warc.gz', 'negative_urls_text.txt')
+
+    train_quality_classifier()
     return 0
 
 

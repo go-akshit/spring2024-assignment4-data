@@ -16,7 +16,8 @@ from cc_filtering import (
     classify_toxic_speech,
     gopher_quality_filter,
     exact_deduplication, 
-    minhash_lsh_deduplication
+    minhash_lsh_deduplication,
+    predict_quality_classifier
 )
 
 def run_extract_text_from_html_bytes(html_bytes: bytes) -> str | None:
@@ -48,7 +49,7 @@ def run_classify_toxic_speech(text: str) -> tuple[Any, float]:
 
 
 def run_classify_quality(text: str) -> tuple[Any, float]:
-    raise NotImplementedError
+    return predict_quality_classifier(text)
 
 
 def run_gopher_quality_filter(text: str) -> bool:

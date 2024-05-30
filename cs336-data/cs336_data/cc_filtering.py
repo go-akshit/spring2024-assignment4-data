@@ -392,9 +392,9 @@ def process_single_warc_file(warc_file_path : str, output_file_path : str):
     num_removed_toxic = 0
     num_removed_quality = 0
 
-    lang_model = fasttext.load_model('../../lid.176.bin')
-    nsfw_model = fasttext.load_model('../../nsfw_model.bin')
-    toxic_model = fasttext.load_model('../../hatespeech_model.bin')
+    lang_model = fasttext.load_model('/home/shared/lid.176.bin')
+    nsfw_model = fasttext.load_model('/home/shared/dolma-jigsaw-fasttext-bigrams-nsfw.bin')
+    toxic_model = fasttext.load_model('/home/shared/dolma-jigsaw-fasttext-bigrams-hatespeech.bin')
     quality_model = fasttext.load_model("quality_classifier_model.bin")
 
     with open(output_file_path, 'w') as f:

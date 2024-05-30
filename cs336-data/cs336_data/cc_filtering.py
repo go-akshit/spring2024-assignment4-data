@@ -451,7 +451,10 @@ def process_single_warc_file(warc_file_path : str, output_file_path : str):
 
     return (num_removed_gopher, num_removed_language, num_removed_nsfw, num_removed_toxic, num_removed_quality)
     
-
+def process_warc_files():
+    directory_path = Path('/home/shared/CC-MAIN-2023-50-warc-filtered')
+    warc_file_list = [f for f in os.listdir(directory_path) if f.endswith('.warc.filtered.gz')]
+    print (len(warc_file_list))
 
 def main():
     
@@ -490,7 +493,8 @@ def main():
 
     #extract_text_from_warc('../../CC-MAIN-20180420081400-20180420101400-00118.warc.gz', 'negative_urls_text.txt')
 
-    train_quality_classifier()
+    #train_quality_classifier()
+    process_warc_files()
     return 0
 
 

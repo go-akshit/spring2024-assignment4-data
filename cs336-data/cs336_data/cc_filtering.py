@@ -449,12 +449,55 @@ def process_single_warc_file(warc_file_path : str, output_file_path : str):
                     f.write(text)
                     f.write('\n')
 
-    return (num_removed_gopher, num_removed_language, num_removed_nsfw, num_removed_toxic, num_removed_quality)
+    return (output_file_path, num_removed_gopher, num_removed_language, num_removed_nsfw, num_removed_toxic, num_removed_quality)
     
 def process_warc_files():
-    directory_path = Path('/home/shared/CC-MAIN-2023-50-warc-filtered')
-    warc_file_list = [f for f in os.listdir(directory_path) if f.endswith('.warc.filtered.gz')]
-    print (len(warc_file_list))
+    total_num_removed_gopher = 0
+    total_num_removed_language = 0
+    total_num_removed_nsfw = 0
+    total_num_removed_toxic = 0
+    total_num_removed_quality = 0
+    executor = submitit.AutoExecutor(folder='slurm_logs')
+    max_simultaneous_jobs = 16
+    warc_directory_path = Path('/home/shared/CC-MAIN-2023-50-warc-filtered')
+    warc_filenames = [f for f in os.listdir(warc_directory_path) if f.endswith('.warc.filtered.gz')]
+    output_directory_path = Path('/home/c-akshit/assn4_new1/spring2024-assignment4-data/warc_filtered_data')
+    executor.update_parameters(
+        slurm_array_parallelism=max_simultaneous_jobs,
+        timeout_min=60,
+        mem_gb=16,
+        cpus_per_task=4,
+        slurm_account='cs336_user',
+        slurm_partition='a4-cpu',
+    ) 
+    futures = []
+    with executor.batch():
+        for warc_filename in warc_filenames:
+            warc_filepath = str('/home/shared/CC-MAIN-2023-50-warc-filtered/' + warc_filename)
+            future = executor.submit(
+                process_single_warc_file,
+                warc_filepath,
+                os.path.join(output_directory_path, warc_filename.replace('.warc.filtered.gz', '.txt'))
+            )
+            futures.append(future)
+    
+    for future in tqdm(
+        submitit.helpers.as_completed(futures),
+        total=len(warc_filenames),
+    ):
+        output_file_path, num_removed_gopher, num_removed_language, num_removed_nsfw, num_removed_toxic, num_removed_quality = future.result()
+        total_num_removed_gopher += num_removed_gopher
+        total_num_removed_language += num_removed_language
+        total_num_removed_nsfw += num_removed_nsfw
+        total_num_removed_toxic += num_removed_toxic
+        total_num_removed_quality += num_removed_quality
+        print('Total number of documents removed by gopher filter: ', total_num_removed_gopher)
+        print('Total number of documents removed by language filter: ', total_num_removed_language)
+        print('Total number of documents removed by nsfw filter: ', total_num_removed_nsfw)
+        print('Total number of documents removed by toxic filter: ', total_num_removed_toxic)
+        print('Total number of documents removed by quality filter: ', total_num_removed_quality)
+        print(f'Output written to {output_file_path}')
+
 
 def main():
     

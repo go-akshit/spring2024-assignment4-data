@@ -543,6 +543,7 @@ def main():
     #extract_text_from_warc('../../CC-MAIN-20180420081400-20180420101400-00118.warc.gz', 'negative_urls_text.txt')
 
     #train_quality_classifier()
+    print('starting warc processing...')
     process_warc_files()
     return 0
 

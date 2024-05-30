@@ -398,6 +398,7 @@ def process_single_warc_file(warc_file_path : str, output_file_path : str):
     quality_model = fasttext.load_model("quality_classifier_model.bin")
 
     with open(output_file_path, 'w') as f:
+        print('Processing ', warc_file_path)
         for record in ArchiveIterator(open(warc_file_path, 'rb')):
             if (record.record_type == WarcRecordType.response):
                 if (record.http_headers.get('Content-Type') and 'text/html' in record.http_headers.get('Content-Type')):
@@ -408,6 +409,7 @@ def process_single_warc_file(warc_file_path : str, output_file_path : str):
                     text, _ = mask_phone_numbers(text)
                     text, _ = mask_ips(text)
                     #gopher quality filter
+                    print('gopher quality filter')
                     if(gopher_quality_filter(text) == False):
                         num_removed_gopher += 1
                         continue
@@ -415,6 +417,7 @@ def process_single_warc_file(warc_file_path : str, output_file_path : str):
                     text = text.replace('\n', ' ')
                     
                     #language detection
+                    print('language detection')
                     lang_prediction =  lang_model.predict(text)
                     lang = lang_prediction[0][0].replace('__label__', '')
                     if(lang != 'en'):
@@ -426,6 +429,7 @@ def process_single_warc_file(warc_file_path : str, output_file_path : str):
                     text = normalize_text(text)
 
                     #nsfw classification
+                    print('nsfw classification')
                     nsfw_prediction = nsfw_model.predict(text)
                     nsfw_label = nsfw_prediction[0][0].replace('__label__', '')
                     if(nsfw_label != 'non-nsfw'):
@@ -433,6 +437,7 @@ def process_single_warc_file(warc_file_path : str, output_file_path : str):
                         continue
 
                     #hatred speech classification
+                    print('toxic classification')
                     toxic_prediction = toxic_model.predict(text)
                     toxic_label = toxic_prediction[0][0].replace('__label__', '')
                     if(toxic_label != 'non-toxic'):
@@ -440,6 +445,7 @@ def process_single_warc_file(warc_file_path : str, output_file_path : str):
                         continue  
 
                     #quality classification
+                    print('quality classification')
                     quality_prediction = quality_model.predict(text)
                     quality_label = quality_prediction[0][0].replace('__label__', '')
                     if(quality_label != 'good'):

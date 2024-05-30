@@ -6,4 +6,4 @@
 #SBATCH --time=24:00:00
 #SBATCH --output=filtering%j.out
 #SBATCH --error=filtering%j.err
-wget --timeout=5 -i positive_url_sample1.txt --warc-file=subsampled_positive_urls1.warc -O /dev/null
+python3 cs336-data/cs336_data/cc_filtering.py

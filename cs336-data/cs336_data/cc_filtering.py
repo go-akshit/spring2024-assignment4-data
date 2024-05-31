@@ -61,7 +61,7 @@ def extract_text_from_warc(warc_file_path : str, output_file_path : str):
 
 
 def language_detection(text : str):
-    model = fasttext.load_model('../../lid.176.bin')
+    model = fasttext.load_model('/home/shared/lid.176.bin')
     text = text.replace('\n', ' ')
     prediction =  model.predict(text)
     language = prediction[0][0].replace('__label__', '')
@@ -105,14 +105,14 @@ def mask_ips(text : str):
     return masked_text, len(ip_addresses)
 
 def classify_nsfw(text : str):
-    nsfw_model = fasttext.load_model('../../nsfw_model.bin')
+    nsfw_model = fasttext.load_model('/home/shared/dolma-jigsaw-fasttext-bigrams-nsfw.bin')
     model_prediction = nsfw_model.predict(text)
     label = model_prediction[0][0].replace('__label__', '')
     confidence = model_prediction[1][0]
     return label, confidence
 
 def classify_toxic_speech(text : str):
-    toxic_model = fasttext.load_model('../../hatespeech_model.bin')
+    toxic_model = fasttext.load_model('/home/shared/dolma-jigsaw-fasttext-bigrams-hatespeech.bin')
     model_prediction = toxic_model.predict(text)
     label = model_prediction[0][0].replace('__label__', '')
     confidence = model_prediction[1][0]
@@ -198,6 +198,92 @@ def reservoir_sampling(input_file_path : str, sample_size : int, output_file_pat
         for line in sample_second_half:
             f.write(line)
             f.write('\n')
+
+def reservoir_sampling_warc(warc_file_path: str, sample_size: int, output_file_path: str):
+    sample = []
+    with open(warc_file_path, 'rb') as file:
+        iterator = ArchiveIterator(file)
+        for i, record in enumerate(iterator):
+            if (record.record_type == WarcRecordType.response):
+                if (record.http_headers.get('Content-Type') and 'text/html' in record.http_headers.get('Content-Type')):
+                    record_content = record.reader.read()
+                    text = extract_text(record_content)
+                    if (text != None):
+                        if(len(sample) < sample_size):
+                            sample.append((i, text))
+                        else:
+                            break
+
+        # Once the initial sample is populated
+        w = math.exp(math.log(random.random()) / sample_size)
+        total_records = i + 1
+
+        for record in iterator:
+            skip = math.floor(math.log(random.random()) / math.log(1 - w))
+            total_records += skip + 1
+            for _ in range(skip):
+                while(True):
+                    record = next(iterator, None)
+                    i += 1
+                    if (record != None and record.record_type == WarcRecordType.response):
+                        if (record.http_headers.get('Content-Type') and 'text/html' in record.http_headers.get('Content-Type')):
+                            record_content = record.reader.read()
+                            break
+                    if record == None:
+                        break
+            text = None
+            while(True):
+                record = next(iterator, None)
+                i += 1
+                if (record != None and record.record_type == WarcRecordType.response):
+                    if (record.http_headers.get('Content-Type') and 'text/html' in record.http_headers.get('Content-Type')):
+                        record_content = record.reader.read()        
+                        text = extract_text(record_content)
+                        if text:
+                            break
+                if record == None:
+                    break
+
+            if text:
+                sample[random.randint(0, sample_size - 1)] = (i, text)
+            w *= math.exp(math.log(random.random()) / sample_size)
+
+    # Write the sample to an output file
+    with open(output_file_path, 'w') as f:
+        for i, text in sample:
+            print('record number: ', i)
+            text = text.replace('\n', ' ')
+            f.write(text)
+            f.write('\n')
+
+def extract_text_from_warc_pii_examples(warc_file_path : str, output_file_path1 : str, output_file_path2 : str):
+    i = 0
+    with open(output_file_path1, 'w') as f1:
+        with open(output_file_path2, 'w') as f2:
+            for record in ArchiveIterator(open(warc_file_path, 'rb')):
+                if (record.record_type == WarcRecordType.response):
+                    if (record.http_headers.get('Content-Type') and 'text/html' in record.http_headers.get('Content-Type')):
+                        record_content = record.reader.read()
+                        orig_text = extract_text(record_content)
+                        text, num_email = mask_email(orig_text)
+                        if num_email > 0:
+                            i += 1
+                        text, num_phone = mask_phone_numbers(text)
+                        if num_phone > 0:
+                            i += 1
+                        text, num_ips = mask_ips(text)
+                        if num_ips > 0:
+                            i += 1
+                        
+                        if(num_email > 0 or num_phone > 0 or num_ips > 0):
+                            orig_text = orig_text.replace('\n', ' ')
+                            text = text.replace('\n', ' ')
+                            f1.write(orig_text)
+                            f1.write('\n')
+                            f2.write(text)
+                            f2.write('\n')
+                        if (i == 40):
+                            break
 
 def exact_deduplication(input_files, output_dir):
     line_counts = {}
@@ -543,9 +629,22 @@ def main():
     #extract_text_from_warc('../../CC-MAIN-20180420081400-20180420101400-00118.warc.gz', 'negative_urls_text.txt')
 
     #train_quality_classifier()
-    print('starting warc processing...')
-    process_warc_files()
-    return 0
+    # print('starting warc processing...')
+    # process_warc_files()
+    # return 0
+
+    #random 20 webpages in warc file
+    #reservoir_sampling_warc('../../CC-MAIN-20180420081400-20180420101400-00118.warc.gz', 20, 'output_reservoir_sampling.txt')
+    #nsfw_model = fasttext.load_model('../../nsfw_model.bin')
+    #toxic_model = fasttext.load_model('../../hatespeech_model.bin')
+    with open('output_reservoir_sampling.txt', 'r') as f:
+        for i in range(20):
+            line = f.readline()
+            line = line.replace('\n', ' ')
+            print(gopher_quality_filter(line))
+
+    #extract_text_from_warc_pii_examples('../../CC-MAIN-20180420081400-20180420101400-00118.warc.gz', 'pii_orig.txt', 'pii_replaced.txt')
+
 
 
 if __name__ == '__main__':
